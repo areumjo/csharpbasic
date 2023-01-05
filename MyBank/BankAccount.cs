@@ -21,14 +21,22 @@ namespace MyBank
 		// non-static : unique to each instance of the BankAccount obejct.
 		private static int accountNumberSeed = 1234567890;
 
-		// constructor : a member that has the same name as the class, initialize objects of that class type.
-		public BankAccount(string name, decimal initialBalance)
+		// `readonly` : value can't be changed after the object is constructed.
+		private readonly decimal _minimumBalance;
+        public BankAccount(string name, decimal initialBalance) : this(name, initialBalance, 0) { }
+
+        // constructor : a member that has the same name as the class, initialize objects of that class type.
+        public BankAccount(string name, decimal initialBalance, decimal minimumBalance)
 		{
 			this.AccountNumber = accountNumberSeed.ToString();
 			accountNumberSeed++;
+
 			this.Owner = name;
 			//this.Balance = initialBalance;
-			MakeDeposit(initialBalance, DateTime.Now, "Initial balance");
+
+			this._minimumBalance = minimumBalance;
+			if (minimumBalance > 0)
+				MakeDeposit(initialBalance, DateTime.Now, "Initial balance");
 		}
 
 
@@ -46,14 +54,33 @@ namespace MyBank
 
         public void MakeWithdrawal(decimal amount, DateTime date, string note)
         {
-			if (amount <= 0) throw new ArgumentOutOfRangeException(nameof(amount), "Widthdrawal amount must be positive.");
-			if (Balance - amount < 0) throw new InvalidOperationException("Not enough funds.");
+            if (amount <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(amount), "Amount of withdrawal must be positive");
+            }
 
-			var withdrawal = new Transaction(-amount, date, note);
-			transactionList.Add(withdrawal);
+            Transaction? overdraftTransaction = CheckWithdrawalLimit(Balance - amount < _minimumBalance);
+            Transaction? withdrawal = new(-amount, date, note);
+            transactionList.Add(withdrawal);
+            if (overdraftTransaction != null)
+                transactionList.Add(overdraftTransaction);
         }
 
-		public string GetAccountHistory()
+		// `protected` : it can be called only from derived classes. (other clients can't call this method)
+		// `?` : the method may return `null`
+        protected virtual Transaction? CheckWithdrawalLimit(bool isOverdrawn)
+        {
+            if (isOverdrawn)
+            {
+                throw new InvalidOperationException("Not sufficient funds for this withdrawal");
+            }
+            else
+            {
+                return default;
+            }
+        }
+
+        public string GetAccountHistory()
 		{
 			var report = new System.Text.StringBuilder();
 
@@ -67,6 +94,13 @@ namespace MyBank
 			return report.ToString();
 		}
 
+		// `virtual` : declare a method in the base class that a derived class may override the behavior.
+		// this is a method where any derived class may choose to reimplement. >> `override` on derived classes
+		// `abstract` : derived classes 'must' override the behavior. (base class doesn't provide an implementation) 
+		public virtual void PerformMonthEndTransactions()
+		{
+
+		}
 	}
 }
 
